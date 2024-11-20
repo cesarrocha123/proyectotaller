@@ -23,7 +23,6 @@ def crear_cuenta():
     finally:
         conexion.close()
 
-# === READ ===
 def iniciar_sesion():
     conexion = conectar()
     if not conexion:
@@ -51,13 +50,92 @@ def iniciar_sesion():
     finally:
         conexion.close()
 
-# === UPDATE ===
-def editar_cuenta():
+# === READ ===
+def ver_cuenta():
     conexion = conectar()
     if not conexion:
         return
 
-    id_cuenta = input("ID de la cuenta que deseas editar: ")
+    id_cuenta = input("Ingrese el ID de la cuenta que desea ver: ")
+
+    try:
+        cursor = conexion.cursor()
+        query = """
+        SELECT nombre_usuario, correo, plataforma, 
+        (SELECT COUNT(*) FROM estadisticas WHERE id_cuenta = cuentas.id) AS partidas,
+        (SELECT IFNULL(AVG(kd_ratio), 0) FROM estadisticas WHERE id_cuenta = cuentas.id) AS kd_promedio,
+        (SELECT COUNT(*) FROM resenas WHERE id_cuenta = cuentas.id) AS resenas
+        FROM cuentas
+        WHERE id = %s
+        """
+        cursor.execute(query, (id_cuenta,))
+        cuenta = cursor.fetchone()
+
+        if cuenta:
+            print(f"Nombre: {cuenta[0]}, Correo: {cuenta[1]}, Plataforma: {cuenta[2]}, "
+                  f"Partidas: {cuenta[3]}, K/D Ratio promedio: {cuenta[4]:.2f}, Reseñas: {cuenta[5]}")
+        else:
+            print("Cuenta no encontrada.")
+    except mysql.connector.Error as err:
+        print(f"Error al obtener cuenta: {err}")
+    finally:
+        conexion.close()
+
+def registrar_estadistica(usuario_id):
+    conexion = conectar()
+    if not conexion:
+        return
+
+    id_partida = input("ID de la partida: ")
+    kd_ratio = float(input("K/D Ratio: "))
+    puntuacion = int(input("Puntuación: "))
+    modo_juego = input("Modo de juego: ")
+
+    try:
+        cursor = conexion.cursor()
+        query = "INSERT INTO estadisticas (id_cuenta, id_partida, kd_ratio, puntuacion, modo_juego) VALUES (%s, %s, %s, %s, %s)"
+        cursor.execute(query, (usuario_id, id_partida, kd_ratio, puntuacion, modo_juego))
+        conexion.commit()
+        print("Estadística registrada exitosamente.")
+    except mysql.connector.Error as err:
+        print(f"Error al registrar estadística: {err}")
+    finally:
+        conexion.close()
+
+def agregar_resena(usuario_id):
+    conexion = conectar()
+    if not conexion:
+        return
+
+    id_mapa_modo = input("ID del mapa o modo de juego: ")
+    contenido = input("Reseña (máx 500 caracteres): ")
+
+    while True:
+        try:
+            calificacion = int(input("Calificación (1-5): "))
+            if 1 <= calificacion <= 5:
+                break
+            else:
+                print("La calificación debe estar entre 1 y 5.")
+        except ValueError:
+            print("Debe ingresar un número entero entre 1 y 5.")
+
+    try:
+        cursor = conexion.cursor()
+        query = "INSERT INTO resenas (id_cuenta, id_mapa_modo, contenido, calificacion) VALUES (%s, %s, %s, %s)"
+        cursor.execute(query, (usuario_id, id_mapa_modo, contenido, calificacion))
+        conexion.commit()
+        print("Reseña agregada exitosamente.")
+    except mysql.connector.Error as err:
+        print(f"Error al agregar reseña: {err}")
+    finally:
+        conexion.close()
+
+# === UPDATE ===
+def editar_cuenta(usuario_id):
+    conexion = conectar()
+    if not conexion:
+        return
 
     nuevo_nombre = input("Nuevo nombre de usuario (dejar vacío para no cambiar): ")
     nuevo_correo = input("Nuevo correo electrónico (dejar vacío para no cambiar): ")
@@ -83,7 +161,7 @@ def editar_cuenta():
             valores.append(nueva_plataforma)
 
         query = query.rstrip(", ") + " WHERE id = %s"
-        valores.append(id_cuenta)
+        valores.append(usuario_id)
 
         cursor.execute(query, valores)
         conexion.commit()
@@ -91,7 +169,7 @@ def editar_cuenta():
         if cursor.rowcount > 0:
             print("Cuenta actualizada exitosamente.")
         else:
-            print("No se encontró la cuenta o no se realizaron cambios.")
+            print("No se realizaron cambios.")
     except mysql.connector.Error as err:
         print(f"Error al editar cuenta: {err}")
     finally:
@@ -102,8 +180,7 @@ def editar_estadistica():
     if not conexion:
         return
 
-    id_estadistica = input("ID de la estadística que deseas editar: ")
-
+    id_estadistica = input("ID de la estadística a editar: ")
     nuevo_kd_ratio = input("Nuevo K/D Ratio (dejar vacío para no cambiar): ")
     nueva_puntuacion = input("Nueva puntuación (dejar vacío para no cambiar): ")
     nuevo_modo = input("Nuevo modo de juego (dejar vacío para no cambiar): ")
@@ -132,50 +209,28 @@ def editar_estadistica():
         if cursor.rowcount > 0:
             print("Estadística actualizada exitosamente.")
         else:
-            print("No se encontró la estadística o no se realizaron cambios.")
+            print("No se realizaron cambios.")
     except mysql.connector.Error as err:
         print(f"Error al editar estadística: {err}")
     finally:
         conexion.close()
 
-def editar_resena():
+# === DELETE ===
+def eliminar_cuenta(usuario_id):
     conexion = conectar()
     if not conexion:
         return
 
-    id_resena = input("ID de la reseña que deseas editar: ")
-
-    nuevo_contenido = input("Nuevo contenido de la reseña (máx 500 caracteres, dejar vacío para no cambiar): ")
-    nueva_calificacion = input("Nueva calificación (1-5, dejar vacío para no cambiar): ")
-
     try:
         cursor = conexion.cursor()
-        query = "UPDATE resenas SET "
-        valores = []
-
-        if nuevo_contenido:
-            query += "contenido = %s, "
-            valores.append(nuevo_contenido)
-        if nueva_calificacion:
-            nueva_calificacion = int(nueva_calificacion)
-            if 1 <= nueva_calificacion <= 5:
-                query += "calificacion = %s, "
-                valores.append(nueva_calificacion)
-            else:
-                print("La calificación debe estar entre 1 y 5.")
-                return
-
-        query = query.rstrip(", ") + " WHERE id = %s"
-        valores.append(id_resena)
-
-        cursor.execute(query, valores)
+        query = "DELETE FROM cuentas WHERE id = %s"
+        cursor.execute(query, (usuario_id,))
         conexion.commit()
-
         if cursor.rowcount > 0:
-            print("Reseña actualizada exitosamente.")
+            print("Cuenta eliminada exitosamente.")
         else:
-            print("No se encontró la reseña o no se realizaron cambios.")
+            print("No se encontró la cuenta.")
     except mysql.connector.Error as err:
-        print(f"Error al editar reseña: {err}")
+        print(f"Error al eliminar cuenta: {err}")
     finally:
         conexion.close()
