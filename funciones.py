@@ -234,3 +234,50 @@ def eliminar_cuenta(usuario_id):
         print(f"Error al eliminar cuenta: {err}")
     finally:
         conexion.close()
+# cosas agregar los cambios 
+
+def visualizar_informacion(cursor, usuario_id):
+    cursor.execute("SELECT nombre_usuario, correo, plataforma_id, partidas_jugadas FROM usuarios WHERE id = %s", (usuario_id,))
+
+    usuario = cursor.fetchone()
+    
+    if usuario:
+        print("Nombre de usuario:", usuario['nombre_usuario'])
+        print("Correo electrónico:", usuario['correo'])
+        print("Plataforma:", usuario['plataforma_id'])
+        print("Número de partidas jugadas:", usuario['partidas_jugadas'])
+        print("K/D Ratio promedio:", usuario['kd_ratio_promedio'])
+        print("Número de reseñas publicadas:", usuario['reseñas_publicadas'])
+    else:
+        print("No se encontró el usuario con ese ID.")
+
+def actualizar_informacion(cursor, conexion, usuario_id):
+    nuevo_nombre = input("Nuevo nombre de usuario (deja vacío si no deseas cambiarlo): ")
+    nuevo_correo = input("Nuevo correo electrónico (deja vacío si no deseas cambiarlo): ")
+    nueva_plataforma = input("Nueva plataforma (deja vacío si no deseas cambiarla): ")
+
+    # Construir la consulta de actualización
+    query = "UPDATE usuarios SET "
+    values = []
+    
+    if nuevo_nombre:
+        query += "nombre_usuario = %s, "
+        values.append(nuevo_nombre)
+    if nuevo_correo:
+        query += "correo = %s, "
+        values.append(nuevo_correo)
+    if nueva_plataforma:
+        query += "plataforma_id = %s, "
+        values.append(nueva_plataforma)
+
+    # Eliminar la última coma si hubo alguna actualización
+    if query.endswith(", "):
+        query = query[:-2]
+
+    query += " WHERE id = %s"
+    values.append(usuario_id)
+
+    cursor.execute(query, tuple(values))
+    conexion.commit()
+
+    print("Información actualizada correctamente.")
